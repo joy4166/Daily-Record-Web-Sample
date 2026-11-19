@@ -3,7 +3,7 @@
    Network-First for app shell (fresh updates immediately; offline cache fallback)
    ============================================================================ */
 
-const CACHE_NAME = 'welfare-daily-record-sample-v1';
+const CACHE_NAME = 'welfare-daily-record-sample-v2';
 const PRECACHE_URLS = [
   './',
   './index.html',

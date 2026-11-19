@@ -68,25 +68,33 @@
 ```text
 .
 ├── .gitignore
+├── .nojekyll                  # GitHub Pages 정적 파일 그대로 서빙 설정
 ├── README.md
+├── index.html                 # GitHub Pages 루트 진입 리다이렉트 (./daily-record-web/)
+├── redirect.js                # 루트 진입 리다이렉트 스크립트
 └── daily-record-web/
     ├── index.html             # 메인 UI (샘플 게이트 · 인증 · 4개 작업 탭 · 모달 10폼)
     ├── styles.css             # 디자인 토큰 · 반응형 · A4 통합 @media print 스타일
     ├── app.js                 # 샘플 체험 엔진 · 상태 관리 · KST 집계 · Firestore 동기화 · 인쇄/백업 엔진
-    ├── firebase-config.js     # 샘플 모드(기본) 및 Firebase 프로젝트 연동 설정 파일
+    ├── firebase-config.js     # 샘플 모드(기본) 및 Firebase(daily-record-web-sample) 연동 설정 파일
     ├── firebase.json          # Firebase Hosting · 보안 헤더 · CSP 규칙
     ├── firestore.rules        # 실제 클라우드 운영 시 사용할 Firestore 권한 · 스키마 검증 규칙
-    ├── sw.js                  # PWA Service Worker (welfare-daily-record-sample-v1)
-    ├── manifest.webmanifest   # PWA 매니페스트
+    ├── sw.js                  # PWA Service Worker (welfare-daily-record-sample-v2)
+    ├── manifest.webmanifest   # PWA 매니페스트 (상대 경로 start_url/scope)
     ├── icon.svg / icon-192.png / icon-512.png
     ├── robots.txt             # 검색 엔진 색인 차단
-    ├── .firebaserc            # Firebase 프로젝트 연결 템플릿
+    ├── .firebaserc            # Firebase 프로젝트 연결 설정 (daily-record-web-sample)
     └── README.md              # 웹 앱 디렉토리 안내
 ```
 
 ---
 
-## 5. 로컬 실행 및 실제 기관 배포
+## 5. GitHub Pages 배포 · 로컬 실행 · Firebase 연동
+
+### GitHub Pages 배포 안내 (샘플 데모 호스팅)
+1. GitHub 저장소에서 **Settings → Pages** 로 이동합니다.
+2. **Build and deployment** 에서 **Source**를 `Deploy from a branch`, **Branch**를 `main` / `/(root)` 로 선택한 뒤 **Save** 합니다.
+3. 배포가 완료되면 `https://joy4166.github.io/Daily-Record-Web-Sample/` 접속 시 루트 `index.html`이 `./daily-record-web/`로 자동 이동하며 **샘플 체험 모드**가 즉시 열립니다(방문자마다 각자 브라우저 `localStorage`에서 독립적으로 동작해 데이터가 섞이지 않습니다).
 
 ### 로컬 미리보기 (샘플 체험 모드 즉시 실행)
 ```powershell
@@ -95,11 +103,12 @@ npx --yes serve . -l 5173
 ```
 브라우저에서 `http://localhost:5173`으로 접속하면 별도 로그인 없이 바로 샘플 시스템을 체험할 수 있습니다.
 
-### 실제 기관 클라우드 운영 전환 (선택)
-1. Firebase 콘솔에서 프로젝트를 생성하고 **Authentication(이메일/비밀번호)** 과 **Cloud Firestore**를 활성화합니다.
-2. `daily-record-web/firebase-config.js`에서 `mode: "sample"`을 제거하거나 `mode: "firebase"`로 변경하고, 기관 전용 `apiKey`, `authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, `appId`를 입력합니다.
-3. `daily-record-web/.firebaserc`의 `"default"` 값을 해당 Firebase 프로젝트 ID로 변경한 뒤 배포합니다.
+### 실제 Firebase 클라우드 연동 전환 (`daily-record-web-sample`, 선택)
+`daily-record-web/firebase-config.js` 및 `.firebaserc`에는 이미 `daily-record-web-sample` 프로젝트 설정이 반영되어 있습니다. 실제 클라우드 인증·DB 모드로 전환하려면 아래 단계를 진행하세요.
+1. Firebase 콘솔(`daily-record-web-sample`)에서 **Authentication(이메일/비밀번호)** 과 **Cloud Firestore**를 활성화합니다.
+2. `daily-record-web/firebase-config.js`에서 `mode: "sample"`을 `mode: "firebase"`로 변경합니다.
+3. 보안 규칙과 호스팅을 배포합니다.
 ```powershell
 cd daily-record-web
-firebase deploy --only firestore:rules,hosting
+firebase deploy --only firestore:rules,hosting --project daily-record-web-sample
 ```
