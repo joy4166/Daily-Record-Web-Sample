@@ -1,0 +1,37 @@
+# Agent, IDE & audit workspaces
+.agent/
+.gemini/
+.impeccable/
+.vscode/
+.idea/
+security-audit/
+PRODUCT.md
+
+# Legacy prototypes, scratch folders & duplicate exports
+Daily Record/
+excel pull test/
+**/개발계획서.md
+웹 운영일지 가이드.pdf
+
+# Resident PII & backup / spreadsheet files (NEVER commit)
+초기_이용인_기본명단_백업.json
+*백업*.json
+*backup*.json
+*.xlsx
+*.xls
+*.csv
+
+# Firebase CLI cache, logs & env
+**/.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+**/node_modules/
+.env
+.env.*
+
+# Office & OS temporary files
+~$*
+.DS_Store
+Thumbs.db
+Desktop.ini

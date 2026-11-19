@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#0f5c58">
+  <meta name="color-scheme" content="light">
+  <title>종합사회복지관 · 주간보호시설 · 일일 활동 기록 (샘플)</title>
+
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" integrity="sha384-ei/b2Mz3F5J8nqTvpKS89CkzDCuD7Cc+/F+OsaPUKItzHgLNKnGq3rjtYq/B7RnO" crossorigin="anonymous">
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- Firebase Compatibility SDKs (Pinned 10.7.1 + SHA-384 SRI) -->
+  <script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" integrity="sha384-yuGdyIzzYtOBlBG6JOWn+Ey9kpq7HocusNuxEGyyohr1eEyXpeEyehIIXC/hznw4" crossorigin="anonymous"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js" integrity="sha384-lI+CxEx/bCvWP1b0OK13j5HTrTZP7yf1xle8TVOFq2smz6KC1RChTarRV/RHP5PP" crossorigin="anonymous"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js" integrity="sha384-nwX2Qpkhc2sv6L0ZPkLefLGguao67toSowvePuQvGF6cG+8MUphGI2uI94Ls3JF7" crossorigin="anonymous"></script>
+  <script defer src="firebase-config.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <a href="#mainWorkspace" class="skip-link no-print">본문 바로가기</a>
+
+  <!-- ========================================================================= -->
+  <!-- 1. AUTHENTICATION GATE (Firebase Auth · 기관 코드 기반 서버 검증 로그인)     -->
+  <!-- ========================================================================= -->
+  <main id="authGate" class="auth-gate no-print">
+    <section class="auth-panel" aria-labelledby="authHeading">
+      <div class="auth-header">
+        <svg class="auth-brand-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+          <rect x="9" y="3" width="6" height="4" rx="1"/>
+          <path d="m9 14 2 2 4-4"/>
+        </svg>
+        <div>
+          <h1 id="authHeading" class="auth-title">종합사회복지관 · 주간보호시설</h1>
+          <p class="auth-subtitle" id="authSubtitle">일일 활동 기록 및 운영일지 출력 시스템 (샘플)</p>
+        </div>
+      </div>
+
+      <!-- Loading state while checking Firebase auth bootstrap state -->
+      <div id="authLoadingState" class="auth-loading">
+        <span class="loading-spinner" aria-hidden="true"></span>
+        <span>연결 상태 및 보안 인증 설정을 확인하고 있습니다...</span>
+      </div>
+
+      <!-- Offline / Cloud Connection Error State -->
+      <div id="authConnectionError" class="auth-form hidden" role="alert">
+        <div class="auth-error">
+          클라우드 인증 서버에 연결할 수 없습니다. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.
+        </div>
+        <button type="button" id="retryAuthConnectBtn" class="btn btn-secondary btn-auth-lg">다시 연결 시도</button>
+      </div>
+
+      <!-- Sample Demo Experience Gate (shown when switching roles / exiting workspace in sample mode) -->
+      <div id="authDemoPanel" class="auth-form hidden">
+        <div class="notice-banner">
+          별도 서버나 로그인 없이 출결 체크, 프로그램 실적·누계, 운영일지 작성, A4 공문서 인쇄를 모두 체험할 수 있는 <strong>샘플 모드</strong>입니다.
+        </div>
+        <button type="button" id="startDemoAdminBtn" class="btn btn-primary btn-auth-lg">김복지 (관리자 권한)로 샘플 체험하기</button>
+        <button type="button" id="startDemoStaffBtn" class="btn btn-secondary btn-auth-lg">이돌봄 (일반 담당자 권한)로 체험하기</button>
+        <button type="button" id="demoGateResetBtn" class="btn btn-subtle btn-auth-lg">샘플 예시 데이터 초기 상태로 복원</button>
+        <details class="demo-auth-details">
+          <summary>실제 기관 도입 시 보안 로그인 방식 안내</summary>
+          <p class="field-hint">실제 기관 운영 환경에서는 기관 가입 코드(해시 검증)와 담당자별 개인 비밀번호로 로그인하며, 입력된 기록은 기관 전용 클라우드에 실시간 동기화됩니다.</p>
+        </details>
+      </div>
+
+      <!-- State A: First-time Facility Setup (0 teachers bootstrapped) -->
+      <form id="authInitForm" class="auth-form hidden" novalidate>
+        <div class="notice-banner">
+          처음 시작하셨습니다. 첫 번째 관리자 선생님 계정과, 앞으로 다른 선생님들이 계정을 만들 때 입력할 <strong>기관 가입 코드</strong>를 설정해 주세요.
+        </div>
+        <div>
+          <label class="field-label" for="initName">선생님 성함<span class="req-mark" aria-hidden="true">*</span></label>
+          <input id="initName" class="field-input" type="text" required maxlength="20" placeholder="예: 김복지" autocomplete="username">
+        </div>
+        <div>
+          <label class="field-label" for="initPassword">개인 비밀번호 (6자 이상)<span class="req-mark" aria-hidden="true">*</span></label>
+          <div class="pw-input-wrap">
+            <input id="initPassword" class="field-input" type="password" required minlength="6" maxlength="40" placeholder="본인만 사용할 비밀번호 (6자 이상)" autocomplete="new-password">
+            <button type="button" class="pw-toggle-btn" data-toggle-pw="initPassword" aria-label="비밀번호 표시" aria-pressed="false">표시</button>
+          </div>
+        </div>
+        <div>
+          <label class="field-label" for="initPasswordConfirm">비밀번호 확인<span class="req-mark" aria-hidden="true">*</span></label>
+          <div class="pw-input-wrap">
+            <input id="initPasswordConfirm" class="field-input" type="password" required minlength="6" maxlength="40" placeholder="비밀번호를 한 번 더 입력" autocomplete="new-password">
+            <button type="button" class="pw-toggle-btn" data-toggle-pw="initPasswordConfirm" aria-label="비밀번호 확인 표시" aria-pressed="false">표시</button>
+          </div>
+        </div>
+        <div>
+          <label class="field-label" for="initInviteCode">기관 가입 코드 (4~12자, 동료 선생님 공유용)<span class="req-mark" aria-hidden="true">*</span></label>
+          <div class="pw-input-wrap">
+            <input id="initInviteCode" class="field-input" type="password" required minlength="4" maxlength="12" placeholder="예: 1004 또는 시설 내 약속 코드" autocomplete="off">
+            <button type="button" class="pw-toggle-btn" data-toggle-pw="initInviteCode" aria-label="기관 가입 코드 표시" aria-pressed="false">표시</button>
+          </div>
+        </div>
+        <label class="auth-check-row">
+          <input type="checkbox" id="initRememberMe" checked>
+          <span>로그인 유지</span>
+        </label>
+        <div id="authInitError" class="auth-error hidden" role="alert"></div>
+        <button type="submit" id="authInitSubmitBtn" class="btn btn-primary btn-auth-lg">관리자 계정 생성하고 시작하기</button>
+      </form>
+
+      <!-- State B: Standard Login & Teacher Self-Signup (bootstrapped) -->
+      <div id="authStandardView" class="hidden">
+        <div class="auth-tabs" role="tablist">
+          <button type="button" id="authTabLogin" class="auth-tab-btn is-active" data-auth-mode="login" role="tab" aria-selected="true" aria-controls="authLoginForm" tabindex="0">선생님 로그인</button>
+          <button type="button" id="authTabRegister" class="auth-tab-btn" data-auth-mode="register" role="tab" aria-selected="false" aria-controls="authRegisterForm" tabindex="-1">새 선생님 계정 만들기</button>
+        </div>
+
+        <form id="authLoginForm" class="auth-form" role="tabpanel" aria-labelledby="authTabLogin" novalidate>
+          <div>
+            <label class="field-label" for="loginName">선생님 성함<span class="req-mark" aria-hidden="true">*</span></label>
+            <input id="loginName" class="field-input" type="text" required maxlength="20" placeholder="등록한 본인 성함 입력" autocomplete="username">
+            <p class="field-hint">성함의 띄어쓰기는 자동으로 정리되어 동일하게 인식됩니다.</p>
+          </div>
+          <div>
+            <label class="field-label" for="loginPassword">개인 비밀번호<span class="req-mark" aria-hidden="true">*</span></label>
+            <div class="pw-input-wrap">
+              <input id="loginPassword" class="field-input" type="password" required placeholder="개인 비밀번호 입력" autocomplete="current-password">
+              <button type="button" class="pw-toggle-btn" data-toggle-pw="loginPassword" aria-label="비밀번호 표시" aria-pressed="false">표시</button>
+            </div>
+            <p class="field-hint">비밀번호를 잊으셨다면 관리자 선생님께 임시 비밀번호 재발급을 요청해 주세요.</p>
+          </div>
+          <label class="auth-check-row">
+            <input type="checkbox" id="loginRememberMe" checked>
+            <span>로그인 유지</span>
+          </label>
+          <div id="authLoginError" class="auth-error hidden" role="alert"></div>
+          <button type="submit" id="authLoginSubmitBtn" class="btn btn-primary btn-auth-lg">로그인</button>
+        </form>
+
+        <form id="authRegisterForm" class="auth-form hidden" role="tabpanel" aria-labelledby="authTabRegister" novalidate>
+          <div>
+            <label class="field-label" for="regInviteCode">기관 가입 코드 (4~12자)<span class="req-mark" aria-hidden="true">*</span></label>
+            <div class="pw-input-wrap">
+              <input id="regInviteCode" class="field-input" type="password" required minlength="4" maxlength="12" placeholder="관리자 선생님께 전달받은 가입 코드" autocomplete="off">
+              <button type="button" class="pw-toggle-btn" data-toggle-pw="regInviteCode" aria-label="기관 가입 코드 표시" aria-pressed="false">표시</button>
+            </div>
+          </div>
+          <div>
+            <label class="field-label" for="regName">선생님 성함<span class="req-mark" aria-hidden="true">*</span></label>
+            <input id="regName" class="field-input" type="text" required maxlength="20" placeholder="본인 성함 입력" autocomplete="username">
+            <p class="field-hint">성함의 띄어쓰기는 자동으로 정리됩니다.</p>
+          </div>
+          <div>
+            <label class="field-label" for="regPassword">사용할 개인 비밀번호 (6자 이상)<span class="req-mark" aria-hidden="true">*</span></label>
+            <div class="pw-input-wrap">
+              <input id="regPassword" class="field-input" type="password" required minlength="6" maxlength="40" placeholder="본인만 사용할 비밀번호 (6자 이상)" autocomplete="new-password">
+              <button type="button" class="pw-toggle-btn" data-toggle-pw="regPassword" aria-label="비밀번호 표시" aria-pressed="false">표시</button>
+            </div>
+          </div>
+          <div>
+            <label class="field-label" for="regPasswordConfirm">비밀번호 확인<span class="req-mark" aria-hidden="true">*</span></label>
+            <div class="pw-input-wrap">
+              <input id="regPasswordConfirm" class="field-input" type="password" required minlength="6" maxlength="40" placeholder="비밀번호를 한 번 더 입력" autocomplete="new-password">
+              <button type="button" class="pw-toggle-btn" data-toggle-pw="regPasswordConfirm" aria-label="비밀번호 확인 표시" aria-pressed="false">표시</button>
+            </div>
+          </div>
+          <label class="auth-check-row">
+            <input type="checkbox" id="regRememberMe" checked>
+            <span>로그인 유지</span>
+          </label>
+          <div id="authRegisterError" class="auth-error hidden" role="alert"></div>
+          <button type="submit" id="authRegisterSubmitBtn" class="btn btn-primary btn-auth-lg">내 계정 만들고 바로 시작하기</button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <!-- ========================================================================= -->
+  <!-- 2. AUTHENTICATED APPLICATION SHELL                                         -->
+  <!-- ========================================================================= -->
+  <div id="appShell" class="hidden">
+
+    <!-- Top Navigation Bar -->
+    <header class="app-header no-print">
+      <div class="app-header-inner">
+        <div class="brand-group">
+          <svg class="brand-mark" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+            <rect x="9" y="3" width="6" height="4" rx="1"/>
+            <path d="m9 14 2 2 4-4"/>
+          </svg>
+          <div>
+            <h1>종합사회복지관 · 주간보호시설</h1>
+          </div>
+        </div>
+
+        <nav class="primary-nav" aria-label="주 메뉴" role="tablist">
+          <button type="button" id="navTab1" class="nav-tab is-active" data-nav-tab="1" role="tab" aria-selected="true" aria-controls="tab1View" tabindex="0">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+            </svg>
+            <span>일일 활동 기록</span>
+          </button>
+          <button type="button" id="navTab4" class="nav-tab" data-nav-tab="4" role="tab" aria-selected="false" aria-controls="tab4View" tabindex="-1">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/>
+            </svg>
+            <span>운영일지 작성</span>
+          </button>
+          <button type="button" id="navTab2" class="nav-tab" data-nav-tab="2" role="tab" aria-selected="false" aria-controls="tab2View" tabindex="-1">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+            </svg>
+            <span>통합 인쇄</span>
+          </button>
+          <button type="button" id="navTab3" class="nav-tab" data-nav-tab="3" role="tab" aria-selected="false" aria-controls="tab3View" tabindex="-1">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M2 14h4"/><path d="M10 8h4"/><path d="M18 16h4"/>
+            </svg>
+            <span>환경 · 계정 관리</span>
+          </button>
+        </nav>
+
+        <div class="header-meta">
+          <div id="syncBadge" class="sync-pill" title="데이터 동기화 상태">
+            <span class="sync-dot" aria-hidden="true"></span>
+            <span id="syncStatusText">연결 준비 중</span>
+          </div>
+          <div class="teacher-chip">
+            <span id="currentTeacherDisplay">-</span>
+            <button type="button" id="headerResetDemoBtn" class="btn btn-secondary btn-sm hidden">샘플 초기화</button>
+            <button type="button" id="headerChangePwBtn" class="btn btn-subtle btn-sm">비밀번호 변경</button>
+            <button type="button" id="logoutBtn" class="btn btn-subtle btn-sm">로그아웃</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main id="mainWorkspace" class="app-main" tabindex="-1">
+
+      <!-- ===================================================================== -->
+      <!-- VIEW 1: 일일 활동 기록 (출결 + 활동 입력)                              -->
+      <!-- ===================================================================== -->
+      <section id="tab1View" class="tab-view" role="tabpanel" aria-labelledby="navTab1" aria-label="일일 활동 기록">
+
+        <!-- Date Navigation & Primary Save Toolbar -->
+        <div class="sheet-panel sheet-bar">
+          <div class="date-controls">
+            <button type="button" class="btn btn-secondary" data-date-delta="-1">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+              <span>어제</span>
+            </button>
+            <label for="currentDateInput" class="sr-only">기록 날짜 선택</label>
+            <input type="date" id="currentDateInput" class="date-picker-input tnum">
+            <span id="currentDateWeekday" class="date-weekday"></span>
+            <span id="futureDateBadge" class="save-state-pill is-warn hidden">미래 일자</span>
+            <button type="button" class="btn btn-secondary" data-date-delta="1">
+              <span>내일</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+            <button type="button" class="btn btn-subtle" data-action="go-today">오늘</button>
+          </div>
+
+          <div class="toolbar-right">
+            <div class="stats-strip" aria-live="polite">
+              <span class="stat-item">등원 <strong id="statAttendCount" class="stat-val is-attend tnum">0</strong>명</span>
+              <span class="stat-item">비대면 <strong id="statRemoteCount" class="stat-val is-remote tnum">0</strong>명</span>
+              <span class="stat-item">결석 <strong id="statAbsentCount" class="stat-val is-absent tnum">0</strong>명</span>
+            </div>
+            <div class="save-inline-group">
+              <span id="topSaveStatePill" class="save-state-pill is-draft" aria-live="polite">미저장</span>
+            </div>
+            <button type="button" id="manualSaveBtn" class="btn btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+              </svg>
+              <span id="manualSaveBtnText">당일 기록 저장</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Attendance Section (4 Vertical Groups: 1-4, 5-8, 9-12, 13-16) -->
+        <section class="sheet-panel" aria-labelledby="attHeading">
+          <div class="sheet-header">
+            <div class="sheet-heading-block">
+              <h2 id="attHeading">이용인 출결사항</h2>
+            </div>
+            <div class="sheet-actions">
+              <span id="attBatchActions" class="inline-action-group">
+                <button type="button" id="markAllAttendBtn" class="btn btn-subtle btn-sm">전원 등원</button>
+              </span>
+              <button type="button" id="openMemberMgmtBtn" class="btn btn-subtle btn-sm">입·퇴소 및 명단 관리</button>
+            </div>
+          </div>
+
+          <!-- First-run Onboarding Banner when 0 residents are registered -->
+          <div id="emptyRosterBanner" class="onboarding-banner hidden" role="status">
+            <div class="onboarding-banner-body">
+              <strong>아직 등록된 이용인이 없습니다 (1~16번 빈 슬롯)</strong>
+              <p><strong>[1~16번 명단 일괄 입력]</strong> 버튼으로 표 한 화면에서 16명을 빠르게 입력하거나, 기존 백업 파일을 불러올 수 있습니다.</p>
+            </div>
+            <div class="sheet-actions">
+              <button type="button" id="startBulkMemberBtn" class="btn btn-primary btn-sm">1~16번 명단 일괄 입력</button>
+              <button type="button" id="addFirstMemberDirectBtn" class="btn btn-subtle btn-sm">+ 1번 슬롯 개별 등록</button>
+              <button type="button" id="goBackupRestoreBtn" class="btn btn-secondary btn-sm">백업 파일 불러오기</button>
+            </div>
+          </div>
+
+          <div id="attendanceGrid" class="att-grid-4col">
+            <!-- Populated by app.js in vertical column groups -->
+          </div>
+        </section>
+
+        <!-- Daily Activity Log Section -->
+        <section class="sheet-panel" aria-labelledby="actHeading">
+          <div class="sheet-header">
+            <div class="sheet-heading-block">
+              <h2 id="actHeading">당일 활동 기록</h2>
+            </div>
+            <div id="actHeaderActions" class="sheet-actions">
+              <button type="button" id="addActivityRowBtn" class="btn btn-secondary btn-sm">+ 행 추가</button>
+              <button type="button" id="resetRoutinesBtn" class="btn btn-subtle btn-sm">기본 루틴 다시 채우기</button>
+            </div>
+          </div>
+
+          <div id="emptyActivityNotice" class="empty-section-notice hidden">
+            이용인 명단을 먼저 등록하면 매일 등록 루틴(건강체크·급식 등)이 자동으로 채워집니다.
+          </div>
+
+          <div id="activityBodyWrap">
+            <div class="table-scroll">
+              <table class="data-table activity-table">
+                <thead>
+                  <tr>
+                    <th scope="col" class="col-center col-seq">순번</th>
+                    <th scope="col" class="col-cat">1단계: 대분류</th>
+                    <th scope="col" class="col-prog">2단계: 세부 프로그램</th>
+                    <th scope="col" class="col-center col-count">실시횟수 (회)</th>
+                    <th scope="col" class="col-center col-members">참석인원 (명)</th>
+                    <th scope="col" class="col-center col-del">삭제</th>
+                  </tr>
+                </thead>
+                <tbody id="activityTableBody">
+                  <!-- Populated by app.js with focus-preserving DOM patching -->
+                </tbody>
+              </table>
+            </div>
+
+            <div class="sheet-footer">
+              <div class="sheet-footer-left">
+                <span id="saveStatusIndicator" class="save-status-text" aria-live="polite">불러오는 중...</span>
+                <span id="currentDateDisplay" class="tnum footer-date-text"></span>
+              </div>
+              <div class="sheet-actions">
+                <span id="holidayAdminHint" class="cell-note-muted hidden">휴관일 기록 비우기는 관리자 계정에서 가능</span>
+                <button type="button" id="deleteDayRecordBtn" class="btn btn-danger-outline btn-sm hidden">이 날짜 기록 비우기 (휴관일 처리)</button>
+                <span class="footer-shortcut-hint">단축키: Ctrl + S 저장 · Alt + ←/→ 날짜 이동 · Ctrl + P A4 인쇄</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div id="mobileSaveBar" class="mobile-save-bar no-print">
+          <div class="mobile-save-meta">
+            <span id="mobileAttendSummary" class="mobile-save-counts tnum">등원 0 · 비대면 0 · 결석 0</span>
+            <span id="mobileSaveStateText" class="mobile-save-state">초안</span>
+          </div>
+          <button type="button" id="mobileManualSaveBtn" class="btn btn-primary btn-sm">당일 기록 저장</button>
+        </div>
+
+      </section>
+
+      <!-- ===================================================================== -->
+      <!-- VIEW 4: 주간보호 운영일지 작성 (순수 작성 · 저장 전용)                 -->
+      <!-- ===================================================================== -->
+      <section id="tab4View" class="tab-view hidden" role="tabpanel" aria-labelledby="navTab4" aria-label="주간보호 운영일지 작성">
+
+        <div class="sheet-panel sheet-bar no-print">
+          <div class="date-controls">
+            <button type="button" class="btn btn-secondary" data-date-delta="-1">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+              <span>어제</span>
+            </button>
+            <label for="journalDateInput" class="sr-only">운영일지 날짜 선택</label>
+            <input type="date" id="journalDateInput" class="date-picker-input tnum">
+            <span id="journalDateWeekday" class="date-weekday"></span>
+            <span id="journalFutureDateBadge" class="save-state-pill is-warn hidden">미래 일자</span>
+            <button type="button" class="btn btn-secondary" data-date-delta="1">
+              <span>내일</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+            <button type="button" class="btn btn-subtle" data-action="go-today">오늘</button>
+          </div>
+
+          <div class="toolbar-right">
+            <div class="save-inline-group">
+              <span id="journalSaveStatePill" class="save-state-pill is-draft" aria-live="polite">미저장</span>
+            </div>
+            <button type="button" id="saveJournalBtn" class="btn btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+              </svg>
+              <span id="saveJournalBtnText">운영일지 저장</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="sheet-panel no-print" aria-labelledby="journalFormHeading">
+          <div class="sheet-header">
+            <div class="sheet-heading-block">
+              <h2 id="journalFormHeading">주간보호 운영일지 작성</h2>
+            </div>
+            <div class="sheet-actions">
+              <button type="button" id="pullAbsentFromAttBtn" class="btn btn-subtle btn-sm">출석부 결석자 불러오기</button>
+            </div>
+          </div>
+
+          <div class="journal-form-section">
+            <div class="journal-header-fields-grid">
+              <div class="journal-check-inline-row">
+                <label class="auth-check-row check-row-strong">
+                  <input type="checkbox" id="jSafetyCheck">
+                  <span>안전점검 완료</span>
+                </label>
+                <label class="auth-check-row check-row-strong">
+                  <input type="checkbox" id="jEnvCheck">
+                  <span>환경점검 완료</span>
+                </label>
+              </div>
+              <div>
+                <label class="field-label" for="jAbsentees">결석</label>
+                <input type="text" id="jAbsentees" class="field-input" maxlength="120" placeholder="예: 홍길동 (없으면 공란)">
+              </div>
+              <div>
+                <label class="field-label" for="jAbsentReason">결석사유</label>
+                <input type="text" id="jAbsentReason" class="field-input" maxlength="200" placeholder="예: 개인 사정, 병원 진료">
+              </div>
+            </div>
+          </div>
+
+          <div class="journal-form-section">
+            <div class="journal-ampm-grid">
+              <div class="journal-ampm-col">
+                <h3 class="journal-sec-title">오전 프로그램</h3>
+                <div class="journal-prog-picker-row">
+                  <label class="field-label" for="jAmPrograms">진행 프로그램</label>
+                  <select id="jAmProgPicker" class="field-select" aria-label="오전 프로그램 목록에서 선택 추가">
+                    <option value="">+ 등록 프로그램 선택 추가</option>
+                  </select>
+                </div>
+                <input type="text" id="jAmPrograms" class="field-input" maxlength="160" placeholder="예: 건강체크, 노래교실 (쉼표로 구분)">
+                <div id="jAmProgWarn" class="journal-prog-warn hidden" role="status"></div>
+                <div>
+                  <label class="field-label" for="jAmStaff">담당(지원/봉사)인력</label>
+                  <input type="text" id="jAmStaff" class="field-input" maxlength="120" placeholder="예: 담당 사회복지사, 봉사자 1명">
+                </div>
+                <div>
+                  <label class="field-label" for="jAmDetail">오전 세부내용</label>
+                  <textarea id="jAmDetail" class="field-textarea" rows="4" maxlength="1500" placeholder="오전 프로그램 진행 세부내용을 입력하세요"></textarea>
+                </div>
+              </div>
+
+              <div class="journal-ampm-col journal-ampm-col-divider">
+                <h3 class="journal-sec-title">오후 프로그램</h3>
+                <div class="journal-prog-picker-row">
+                  <label class="field-label" for="jPmPrograms">진행 프로그램</label>
+                  <select id="jPmProgPicker" class="field-select" aria-label="오후 프로그램 목록에서 선택 추가">
+                    <option value="">+ 등록 프로그램 선택 추가</option>
+                  </select>
+                </div>
+                <input type="text" id="jPmPrograms" class="field-input" maxlength="160" placeholder="예: 요리활동, 종이접기 (쉼표로 구분)">
+                <div id="jPmProgWarn" class="journal-prog-warn hidden" role="status"></div>
+                <div>
+                  <label class="field-label" for="jPmStaff">담당(지원/봉사)인력</label>
+                  <input type="text" id="jPmStaff" class="field-input" maxlength="120" placeholder="예: 담당 사회복지사, 외부강사 1명">
+                </div>
+                <div>
+                  <label class="field-label" for="jPmDetail">오후 세부내용</label>
+                  <textarea id="jPmDetail" class="field-textarea" rows="4" maxlength="1500" placeholder="오후 프로그램 진행 세부내용을 입력하세요"></textarea>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label class="field-label" for="jResidentNotes">이용인 특이사항</label>
+              <textarea id="jResidentNotes" class="field-textarea" rows="2" maxlength="1200" placeholder="이용인 건강·정서·행동 등 당일 특이사항"></textarea>
+            </div>
+          </div>
+
+          <div class="journal-form-section">
+            <div class="journal-section-bar">
+              <h3 class="journal-sec-title">업무사항 (사회복지사 담당자별 기록)</h3>
+              <div class="sheet-actions">
+                <button type="button" id="addDayStaffRowBtn" class="btn btn-subtle btn-sm">+ 당일 작성자 칸 추가</button>
+                <button type="button" id="openJournalWritersBtn" class="btn btn-secondary btn-sm">업무사항 담당자 고정 명단 설정</button>
+              </div>
+            </div>
+            <div id="journalStaffInputsContainer" class="journal-staff-inputs"></div>
+          </div>
+
+          <div class="journal-form-section">
+            <div class="journal-footer-inputs-grid">
+              <div>
+                <label class="field-label" for="jSponsorItems">후원 물품 외</label>
+                <textarea id="jSponsorItems" class="field-textarea" rows="2" maxlength="400" placeholder="후원 물품 및 내용"></textarea>
+              </div>
+              <div>
+                <label class="field-label" for="jEtcNotes">기타 (전달사항 외)</label>
+                <textarea id="jEtcNotes" class="field-textarea" rows="2" maxlength="400" placeholder="기타 전달사항"></textarea>
+              </div>
+              <div>
+                <label class="field-label" for="jKitchenVolunteer">주방봉사</label>
+                <input type="text" id="jKitchenVolunteer" class="field-input" maxlength="80" placeholder="성함 또는 내용">
+              </div>
+              <div>
+                <label class="field-label" for="jVmsCount">VMS등록 봉사인원 (명)</label>
+                <input type="number" id="jVmsCount" class="field-input tnum" min="0" max="999" placeholder="0">
+              </div>
+            </div>
+          </div>
+
+          <div class="sheet-footer">
+            <div class="sheet-footer-left">
+              <span id="journalSaveStatusIndicator" class="save-status-text" aria-live="polite">저장 전</span>
+              <span id="journalDateDisplay" class="tnum footer-date-text"></span>
+            </div>
+            <div class="sheet-actions">
+              <span id="journalDeleteAdminHint" class="cell-note-muted hidden">운영일지 삭제는 관리자 계정에서 가능</span>
+              <button type="button" id="deleteJournalDayBtn" class="btn btn-danger-outline btn-sm hidden">이 날짜 운영일지 삭제</button>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ===================================================================== -->
+      <!-- VIEW 2: 통합 인쇄 (일일활동기록지 · 주간보호 운영일지 선택 출력)         -->
+      <!-- ===================================================================== -->
+      <section id="tab2View" class="tab-view hidden" role="tabpanel" aria-labelledby="navTab2" aria-label="통합 인쇄 출력">
+
+        <div class="sheet-panel sheet-bar no-print">
+          <div class="date-controls">
+            <button type="button" class="btn btn-secondary" data-date-delta="-1">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+              <span>어제</span>
+            </button>
+            <label for="printDateInput" class="sr-only">출력 일자 선택</label>
+            <input type="date" id="printDateInput" class="date-picker-input tnum">
+            <span id="printDateWeekday" class="date-weekday"></span>
+            <span id="printFutureDateBadge" class="save-state-pill is-warn hidden">미래 일자</span>
+            <button type="button" class="btn btn-secondary" data-date-delta="1">
+              <span>내일</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+            <button type="button" class="btn btn-subtle" data-action="go-today">오늘</button>
+          </div>
+
+          <div class="toolbar-right">
+            <div id="printDocModeGroup" class="print-mode-group" role="group" aria-label="출력 서식 선택">
+              <button type="button" class="filter-btn is-active" data-print-mode="daily" aria-pressed="true">일일기록지</button>
+              <button type="button" class="filter-btn" data-print-mode="journal" aria-pressed="false">운영일지</button>
+              <button type="button" class="filter-btn" data-print-mode="both" aria-pressed="false">함께 인쇄 (2장)</button>
+            </div>
+            <label id="printShowDateWrap" class="auth-check-row check-row-strong">
+              <input type="checkbox" id="printShowDateChk" checked>
+              <span>기록지 날짜 표기</span>
+            </label>
+            <button type="button" id="togglePrintZoomFitBtn" class="btn btn-secondary btn-sm print-zoom-btn" aria-pressed="true">원본 크기로 보기</button>
+            <button type="button" id="printReportBtn" class="btn btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+              </svg>
+              <span id="printReportBtnText">일일기록지 인쇄 / PDF</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="unifiedDailyPrintSection" class="unified-print-section">
+          <div id="unrecordedDayBanner" class="unrecorded-banner no-print hidden" role="status">
+            <div>
+              <strong>아직 저장된 일일 활동 기록이 없는 날짜입니다 (휴관일 또는 미작성)</strong>
+              <p>금일 실적은 공란으로 표시되며, 우하단에는 직전까지 실제 저장된 연간 누계만 합산됩니다.</p>
+            </div>
+            <button type="button" id="commitDefaultPrintBtn" class="btn btn-secondary btn-sm">기본 출결·루틴으로 기록 생성</button>
+          </div>
+
+          <div id="printOverflowBanner" class="unrecorded-banner no-print hidden" role="status">
+            <div>
+              <strong id="printOverflowTitle">추가 등록 프로그램 블록이 포함되어 있습니다</strong>
+              <p id="printOverflowDesc">인쇄 미리보기에서 A4 1페이지에 들어오는지 함께 확인해 주세요.</p>
+            </div>
+          </div>
+
+          <div id="paperPreviewShell" class="paper-preview-shell is-fit-mobile">
+            <div id="dailyPaperDoc" class="paper-doc daily-paper-doc">
+              <div class="doc-sheet-head">
+                <h2 class="doc-sheet-title">일 일 활 동 기 록 지</h2>
+                <div id="printDateHeader" class="doc-date-header tnum"></div>
+              </div>
+              <div class="doc-stack">
+                <div id="printAttendanceContainer"></div>
+                <div id="printMainGridContainer" class="doc-stack"></div>
+              </div>
+              <div class="doc-facility-footer">종합사회복지관 · 주간보호시설</div>
+            </div>
+          </div>
+
+          <div id="printAdminFooter" class="print-admin-footer no-print hidden">
+            <span class="subtext-secondary">휴관일에 잘못 생성된 기록은 비워서 연간 누계에서 제외할 수 있습니다.</span>
+            <button type="button" id="deleteDayRecordPrintBtn" class="btn btn-danger-outline btn-sm">이 날짜 기록 비우기 (휴관일 처리)</button>
+          </div>
+          <div id="printNonAdminHint" class="print-admin-footer no-print hidden">
+            <span class="subtext-secondary">잘못 생성된 휴관일 기록 비우기(초기화)는 관리자 선생님 계정에서 실행할 수 있습니다.</span>
+          </div>
+        </div>
+
+        <div id="unifiedJournalPrintSection" class="unified-print-section hidden">
+          <div id="unrecordedJournalBanner" class="unrecorded-banner no-print hidden" role="status">
+            <div>
+              <strong>아직 저장된 운영일지가 없는 날짜입니다</strong>
+              <p>공란 양식으로 인쇄하거나 작성 화면에서 내용을 입력·저장할 수 있습니다.</p>
+            </div>
+            <button type="button" id="goWriteJournalFromPrintBtn" class="btn btn-secondary btn-sm">운영일지 작성으로 이동</button>
+          </div>
+
+          <div id="journalOverflowBanner" class="unrecorded-banner no-print hidden" role="status">
+            <div>
+              <strong>작성 분량이 많아 A4 1장 높이를 초과했습니다</strong>
+              <p>세부내용 또는 업무사항 분량을 조금 줄여 주시면 잘림 없이 A4 1장 안에 깔끔하게 인쇄됩니다.</p>
+            </div>
+          </div>
+
+          <div id="journalPreviewShell" class="paper-preview-shell is-fit-mobile">
+            <div id="journalPaperDoc" class="paper-doc journal-paper-doc fit-step-0"></div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ===================================================================== -->
+      <!-- VIEW 3: 환경 · 계정 관리                                             -->
+      <!-- ===================================================================== -->
+      <section id="tab3View" class="tab-view hidden" role="tabpanel" aria-labelledby="navTab3" aria-label="환경 및 계정 관리">
+
+        <div class="sub-nav" role="tablist">
+          <button type="button" id="subBtn_members" class="sub-tab-btn is-active" data-mgmt-sub="members" role="tab" aria-selected="true" aria-controls="subPanel_members" tabindex="0">이용인 인적사항 관리</button>
+          <button type="button" id="subBtn_programs" class="sub-tab-btn" data-mgmt-sub="programs" role="tab" aria-selected="false" aria-controls="subPanel_programs" tabindex="-1">프로그램 · 목표치 관리</button>
+          <button type="button" id="subBtn_backup" class="sub-tab-btn" data-mgmt-sub="backup" role="tab" aria-selected="false" aria-controls="subPanel_backup" tabindex="-1">데이터 백업 · 신년 초기화</button>
+          <button type="button" id="subBtn_accounts" class="sub-tab-btn" data-mgmt-sub="accounts" role="tab" aria-selected="false" aria-controls="subPanel_accounts" tabindex="-1">선생님 계정 관리</button>
+        </div>
+
+        <!-- SUBTAB 1: 이용인 인적사항 관리 -->
+        <section id="subPanel_members" class="sheet-panel" role="tabpanel" aria-labelledby="subBtn_members">
+          <div class="sheet-header">
+            <div class="sheet-heading-block">
+              <h2 id="mgmtMembersHeading">이용인 목록 및 입·퇴소 관리</h2>
+              <p class="sheet-desc">이용인 등록·수정·대기 전환·퇴소 처리를 관리합니다. 초기 1~16번 명단은 <strong>[1~16번 명단 일괄 입력]</strong>으로 한 번에 빠르게 작성할 수 있습니다.</p>
+            </div>
+            <div class="sheet-actions">
+              <button type="button" id="backToTab1FromMembersBtn" class="btn btn-subtle btn-sm">← 출석부로 돌아가기</button>
+              <button type="button" id="toggleBulkMemberBtn" class="btn btn-secondary" aria-pressed="false">1~16번 명단 일괄 입력</button>
+              <button type="button" id="addMemberBtn" class="btn btn-primary">+ 신규 이용인 등록</button>
+            </div>
+          </div>
+
+          <div id="bulkMemberActionBar" class="bulk-bar hidden">
+            <span>1~16번 슬롯의 성명·연령·상태·등록일을 표에서 바로 입력·수정한 뒤 <strong>[일괄 저장 완료]</strong>를 눌러 주세요. (Enter 키로 다음 줄 이동)</span>
+            <div class="sheet-actions">
+              <button type="button" id="cancelBulkMemberBtn" class="btn btn-secondary btn-sm">취소</button>
+              <button type="button" id="saveBulkMemberBtn" class="btn btn-primary btn-sm">일괄 저장 완료</button>
+            </div>
+          </div>
+
+          <div class="filter-strip" id="memberFilterStrip" role="group" aria-label="이용인 상태 필터">
+            <button type="button" class="filter-btn is-active" data-filter="ALL" aria-pressed="true">전체</button>
+            <button type="button" class="filter-btn" data-filter="ACTIVE" aria-pressed="false">이용중</button>
+            <button type="button" class="filter-btn" data-filter="WAITING" aria-pressed="false">대기</button>
+            <button type="button" class="filter-btn" data-filter="DISCHARGED" aria-pressed="false">퇴소 이력</button>
+            <span id="memberRosterSummary" class="roster-summary-text tnum"></span>
+          </div>
+
+          <div class="table-scroll">
+            <table id="memberMgmtTable" class="data-table member-mgmt-table">
+              <thead>
+                <tr>
+                  <th scope="col" class="col-center col-mem-no">번호</th>
+                  <th scope="col">성명</th>
+                  <th scope="col" class="col-center col-mem-age">연령</th>
+                  <th scope="col" class="col-center col-mem-status">상태</th>
+                  <th scope="col" class="col-center col-mem-join">등록일</th>
+                  <th scope="col" class="col-center col-mem-leave">퇴소일</th>
+                  <th scope="col" class="col-center col-mem-act">관리</th>
+                </tr>
+              </thead>
+              <tbody id="memberMgmtTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- SUBTAB 2: 프로그램 · 목표치 관리 -->
+        <section id="subPanel_programs" class="sheet-panel hidden" role="tabpanel" aria-labelledby="subBtn_programs">
+          <div class="sheet-header">
+            <div class="sheet-heading-block">
+              <h2 id="mgmtProgramsHeading">프로그램 마스터 및 연간 목표치</h2>
+              <p class="sheet-desc">목표치 변경 시 인쇄 서식에 즉시 반영됩니다. 기본 1~8번 공문서 항목은 서식 보호를 위해 삭제가 제한되며, <strong>[대분류 관리]</strong>에서 새 대분류를 추가해 하단 표에 배치할 수 있습니다.</p>
+            </div>
+            <div class="sheet-actions">
+              <button type="button" id="openCategoryMgmtBtn" class="btn btn-secondary">대분류 관리</button>
+              <button type="button" id="addProgramBtn" class="btn btn-primary">+ 프로그램 추가</button>
+            </div>
+          </div>
+
+          <div class="filter-bar-program">
+            <div class="filter-strip" id="programCategoryFilterStrip" role="group" aria-label="대분류별 프로그램 필터"></div>
+            <div class="program-search-wrap">
+              <label for="programSearchInput" class="sr-only">프로그램명 검색</label>
+              <input id="programSearchInput" type="search" class="field-input program-search-input" placeholder="프로그램명 검색 (예: 미술, 노래, 급식)">
+              <span id="programFilterCount" class="program-filter-count tnum"></span>
+            </div>
+          </div>
+
+          <div class="table-scroll program-table-scroll">
+            <table class="data-table program-mgmt-table">
+              <thead>
+                <tr>
+                  <th scope="col" class="col-prog-cat">대분류</th>
+                  <th scope="col">프로그램명</th>
+                  <th scope="col" class="col-center col-prog-target">연간 목표 (회)</th>
+                  <th scope="col" class="col-center col-prog-daily">매일 자동등록</th>
+                  <th scope="col" class="col-center col-prog-act">관리</th>
+                </tr>
+              </thead>
+              <tbody id="programMgmtTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- SUBTAB 3: 데이터 백업 · 신년 초기화 -->
+        <section id="subPanel_backup" class="sheet-panel hidden" role="tabpanel" aria-labelledby="subBtn_backup">
+          <div class="sheet-header">
+            <div class="sheet-heading-block">
+              <h2 id="mgmtBackupHeading">데이터 백업 복원 · 신년 초기화</h2>
+              <p class="sheet-desc">확정된 일일 기록과 환경 설정은 클라우드에 실시간 동기화됩니다. 백업 파일 내려받기는 전 직원이 가능하며, 전체 복원과 신년 초기화는 관리자만 실행할 수 있습니다.</p>
+            </div>
+          </div>
+
+          <div class="backup-list">
+            <div class="backup-row">
+              <div>
+                <h3 class="backup-row-title">전체 데이터 백업 파일 내려받기</h3>
+                <p class="backup-row-desc">모든 출결 내역과 활동 실적, 이용인·프로그램 설정을 오늘 날짜가 찍힌 JSON 파일로 저장해 USB나 공용 PC에 보관합니다.</p>
+              </div>
+              <button type="button" id="downloadBackupBtn" class="btn btn-secondary">백업 파일 다운로드</button>
+            </div>
+
+            <div class="backup-row" id="restoreBackupRow">
+              <div>
+                <h3 class="backup-row-title">백업 파일 불러오기 및 클라우드 복원 <span class="admin-only-tag">(관리자 전용)</span></h3>
+                <p class="backup-row-desc">보관해 둔 JSON 백업 파일을 선택해 로컬과 클라우드 전체를 해당 시점 데이터로 복원합니다.</p>
+              </div>
+              <label id="restoreBackupBtnLabel" class="btn btn-secondary">
+                <span>백업 파일 선택하여 복원</span>
+                <input type="file" id="backupFileInput" accept=".json" class="sr-only">
+              </label>
+            </div>
+
+            <div class="backup-row is-danger" id="newYearResetRow">
+              <div>
+                <h3 class="backup-row-title danger-title">신년 데이터 초기화 (연도 마감 전환) <span class="admin-only-tag">(관리자 전용)</span></h3>
+                <p class="backup-row-desc">직전 연도 전체 데이터를 먼저 자동 다운로드한 뒤, 이용인 명단·프로그램 목표·선생님 계정은 유지하고 일일 출결과 활동 실적만 0으로 초기화합니다.</p>
+              </div>
+              <button type="button" id="newYearResetBtn" class="btn btn-danger">신년 데이터 초기화 진행</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- SUBTAB 4: 선생님 계정 관리 -->
+        <section id="subPanel_accounts" class="sub-stack hidden" role="tabpanel" aria-labelledby="subBtn_accounts" aria-label="선생님 계정 관리">
+          <div class="sheet-panel">
+            <div class="sheet-header">
+              <div class="sheet-heading-block">
+                <h2>기관 가입 코드 관리 <span class="admin-only-tag">(관리자 전용)</span></h2>
+                <p class="sheet-desc">새 선생님이 첫 화면에서 개인 계정을 만들 때 입력하는 기관 공용 코드입니다. 보안을 위해 서버에서만 대조되며 원문은 누구에게도 노출되지 않습니다. 코드를 변경해도 기존 선생님 계정의 로그인은 그대로 유지되며, 새로 가입하는 선생님부터 적용됩니다.</p>
+              </div>
+            </div>
+            <div class="backup-row">
+              <div>
+                <div class="subtext-secondary">현재 기관 가입 코드 상태</div>
+                <div id="currentInviteCodeHint" class="tnum invite-status-text">-</div>
+              </div>
+              <form id="inviteCodeForm" class="inline-flex-form" novalidate>
+                <label for="newInviteCodeInput" class="sr-only">새 기관 가입 코드</label>
+                <div class="pw-input-wrap invite-code-input">
+                  <input id="newInviteCodeInput" type="password" class="field-input" minlength="4" maxlength="12" placeholder="새 가입 코드 (4~12자)" required autocomplete="off">
+                  <button type="button" class="pw-toggle-btn" data-toggle-pw="newInviteCodeInput" aria-label="가입 코드 표시" aria-pressed="false">표시</button>
+                </div>
+                <button type="submit" id="updateInviteCodeBtn" class="btn btn-primary">가입 코드 변경</button>
+              </form>
+              <span id="inviteAdminOnlyNotice" class="status-pill is-blank hidden">관리자만 가입 코드를 변경할 수 있습니다</span>
+            </div>
+          </div>
+
+          <div class="sheet-panel">
+            <div class="sheet-header">
+              <div class="sheet-heading-block">
+                <h2>운영일지 업무사항 담당자 설정</h2>
+                <p class="sheet-desc">센터장님 등 운영일지 업무사항을 직접 적지 않는 계정은 제외하고, 실제로 업무사항을 기록하는 사회복지사 선생님 명단과 순서를 설정합니다. 이미 저장된 과거 날짜의 운영일지는 작성 당시 명단 그대로 보존됩니다.</p>
+              </div>
+              <div class="sheet-actions">
+                <button type="button" id="openJournalWritersFromAcctBtn" class="btn btn-secondary">담당자 명단 설정 열기</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="sheet-panel">
+            <div class="sheet-header">
+              <div class="sheet-heading-block">
+                <h2>등록된 선생님 계정 목록</h2>
+                <p class="sheet-desc">본인 비밀번호는 목록의 본인 행에서 직접 변경할 수 있으며, 타 선생님 비밀번호 재발급·관리자 권한 부여·계정 삭제는 관리자만 실행할 수 있습니다.</p>
+              </div>
+            </div>
+            <div class="table-scroll">
+              <table class="data-table teacher-mgmt-table">
+                <thead>
+                  <tr>
+                    <th scope="col">성함</th>
+                    <th scope="col" class="col-center col-t-role">구분</th>
+                    <th scope="col" class="col-center col-t-created">등록일</th>
+                    <th scope="col" class="col-center col-t-login">최근 접속</th>
+                    <th scope="col" class="col-center col-t-act">관리</th>
+                  </tr>
+                </thead>
+                <tbody id="teacherMgmtTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- 3. NATIVE ACCESSIBLE DIALOG MODALS                                        -->
+  <!-- ========================================================================= -->
+
+  <!-- 이용인 등록/수정 (탭 3 / 탭 1 빈 슬롯) -->
+  <dialog id="memberDialog" class="app-dialog" aria-labelledby="memberDlgTitle">
+    <form id="memberDialogForm" method="dialog" novalidate>
+      <div class="dialog-head">
+        <h3 id="memberDlgTitle">이용인 정보</h3>
+        <button type="button" class="dialog-close-icon" data-close-dialog="memberDialog" aria-label="창 닫기">×</button>
+      </div>
+      <div class="dialog-body">
+        <input type="hidden" id="memberEditId">
+        <p id="memberSlotSummary" class="subtext-secondary"></p>
+        <div>
+          <label class="field-label" for="memberEditName">성명<span class="req-mark" aria-hidden="true">*</span></label>
+          <input id="memberEditName" type="text" class="field-input" required maxlength="20" placeholder="성명 입력">
+        </div>
+        <div>
+          <label class="field-label" for="memberEditAge">연령</label>
+          <input id="memberEditAge" type="number" class="field-input tnum" min="1" max="120" placeholder="예: 68">
+        </div>
+        <div>
+          <label class="field-label" for="memberEditStatus">상태</label>
+          <select id="memberEditStatus" class="field-select">
+            <option value="ACTIVE">이용중</option>
+            <option value="WAITING">대기</option>
+            <option value="DISCHARGED">퇴소</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label" for="memberEditJoinDate">등록일</label>
+          <input id="memberEditJoinDate" type="date" class="field-input tnum">
+          <p class="field-hint">등록일 이전 날짜의 출석부에는 표시되지 않습니다.</p>
+        </div>
+        <div id="memberLeaveDateGroup" class="hidden">
+          <label class="field-label" for="memberEditLeaveDate">퇴소일</label>
+          <input id="memberEditLeaveDate" type="date" class="field-input tnum">
+        </div>
+        <div id="memberDlgError" class="auth-error hidden" role="alert"></div>
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="btn btn-secondary" data-close-dialog="memberDialog">취소</button>
+        <button type="button" id="memberSaveNextBtn" class="btn btn-secondary hidden">저장 후 다음 빈 슬롯</button>
+        <button type="submit" class="btn btn-primary">저장</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 프로그램 등록/수정 (탭 3) -->
+  <dialog id="programDialog" class="app-dialog" aria-labelledby="programDlgTitle">
+    <form id="programDialogForm" method="dialog" novalidate>
+      <div class="dialog-head">
+        <h3 id="programDlgTitle">프로그램 등록 · 수정</h3>
+        <button type="button" class="dialog-close-icon" data-close-dialog="programDialog" aria-label="창 닫기">×</button>
+      </div>
+      <div class="dialog-body">
+        <input type="hidden" id="programEditId">
+        <div>
+          <label class="field-label" for="programEditCategory">대분류<span class="req-mark" aria-hidden="true">*</span></label>
+          <select id="programEditCategory" class="field-select" required></select>
+        </div>
+        <div>
+          <label class="field-label" for="programEditName">프로그램명<span class="req-mark" aria-hidden="true">*</span></label>
+          <input id="programEditName" type="text" class="field-input" required maxlength="40" placeholder="예: 웃음치료">
+        </div>
+        <div>
+          <label class="field-label" for="programEditTarget">연간 목표 횟수 (목표 없으면 0)<span class="req-mark" aria-hidden="true">*</span></label>
+          <input id="programEditTarget" type="number" class="field-input tnum" min="0" value="0" required>
+        </div>
+        <label class="auth-check-row">
+          <input type="checkbox" id="programEditIsDaily">
+          <span>일일 활동 기록에 매일 자동 등록</span>
+        </label>
+        <div id="programDlgError" class="auth-error hidden" role="alert"></div>
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="btn btn-secondary" data-close-dialog="programDialog">취소</button>
+        <button type="submit" class="btn btn-primary">저장</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 프로그램 대분류 관리 (탭 3) -->
+  <dialog id="categoryMgmtDialog" class="app-dialog" aria-labelledby="categoryDlgTitle">
+    <form id="categoryDialogForm" method="dialog" novalidate>
+      <div class="dialog-head">
+        <h3 id="categoryDlgTitle">프로그램 대분류 관리</h3>
+        <button type="button" class="dialog-close-icon" data-close-dialog="categoryMgmtDialog" aria-label="창 닫기">×</button>
+      </div>
+      <div class="dialog-body">
+        <p class="subtext-secondary">기본 1~8번 대분류는 공식 일일활동기록지 양식 보호를 위해 고정됩니다. 추가한 대분류에 프로그램을 등록하면 기록지 하단 전용 표에 자동 배치됩니다.</p>
+        <div id="categoryMgmtList" class="journal-writers-list"></div>
+        <div class="journal-custom-writer-add">
+          <label for="newCategoryNameInput" class="sr-only">새 대분류 이름</label>
+          <input id="newCategoryNameInput" type="text" class="field-input" maxlength="30" placeholder="예: 9. 특화사업, 가족지원">
+          <button type="button" id="addCustomCategoryBtn" class="btn btn-secondary btn-sm">+ 대분류 추가</button>
+        </div>
+        <div id="categoryDlgError" class="auth-error hidden" role="alert"></div>
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="btn btn-secondary" data-close-dialog="categoryMgmtDialog">취소</button>
+        <button type="submit" class="btn btn-primary">저장</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 선생님 비밀번호 재설정 (탭 3) -->
+  <dialog id="resetTeacherPwDialog" class="app-dialog" aria-labelledby="resetPwDlgTitle">
+    <form id="resetTeacherPwForm" method="dialog" novalidate>
+      <div class="dialog-head">
+        <h3 id="resetPwDlgTitle">선생님 비밀번호 재설정</h3>
+        <button type="button" class="dialog-close-icon" data-close-dialog="resetTeacherPwDialog" aria-label="창 닫기">×</button>
+      </div>
+      <div class="dialog-body">
+        <input type="hidden" id="resetPwTeacherId">
+        <input type="text" id="resetPwUsernameMirror" class="sr-only" tabindex="-1" autocomplete="username" aria-hidden="true">
+        <p id="resetPwTeacherLabel" class="subtext-secondary"></p>
+        <div id="resetPwCurrentGroup">
+          <label class="field-label" for="resetPwCurrentInput">현재 비밀번호 확인<span class="req-mark" aria-hidden="true">*</span></label>
+          <div class="pw-input-wrap">
+            <input id="resetPwCurrentInput" type="password" class="field-input" maxlength="40" autocomplete="current-password" placeholder="현재 사용 중인 비밀번호">
+            <button type="button" class="pw-toggle-btn" data-toggle-pw="resetPwCurrentInput" aria-label="현재 비밀번호 표시" aria-pressed="false">표시</button>
+          </div>
+        </div>
+        <div>
+          <label class="field-label" for="resetPwNewInput">새 비밀번호 (6자 이상)<span class="req-mark" aria-hidden="true">*</span></label>
+          <div class="pw-input-wrap">
+            <input id="resetPwNewInput" type="password" class="field-input" required minlength="6" maxlength="40" autocomplete="new-password" placeholder="새 비밀번호 (6자 이상)">
+            <button type="button" class="pw-toggle-btn" data-toggle-pw="resetPwNewInput" aria-label="새 비밀번호 표시" aria-pressed="false">표시</button>
+          </div>
+        </div>
+        <div id="resetPwError" class="auth-error hidden" role="alert"></div>
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="btn btn-secondary" data-close-dialog="resetTeacherPwDialog">취소</button>
+        <button type="submit" id="resetPwSubmitBtn" class="btn btn-primary">비밀번호 변경</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 신년 데이터 초기화 2중 확인 (탭 3) -->
+  <dialog id="newYearResetDialog" class="app-dialog" aria-labelledby="newYearDlgTitle">
+    <form id="newYearResetForm" method="dialog" novalidate>
+      <div class="dialog-head">
+        <h3 id="newYearDlgTitle" class="danger-title">신년 데이터 초기화 확인</h3>
+        <button type="button" class="dialog-close-icon" data-close-dialog="newYearResetDialog" aria-label="창 닫기">×</button>
+      </div>
+      <div class="dialog-body">
+        <ol class="dialog-warn-list">
+          <li>실행 직전, 지금까지의 전체 기록이 백업 JSON 파일로 먼저 자동 저장됩니다.</li>
+          <li>이용인 명단, 프로그램 목록·목표치, 선생님 계정은 <strong>그대로 유지</strong>됩니다.</li>
+          <li>로컬 및 클라우드의 일일 출결·활동 실적·운영일지만 초기화되어 새로 시작합니다.</li>
+        </ol>
+        <p id="newYearRecordSummary" class="subtext-secondary check-row-strong"></p>
+        <div>
+          <label class="field-label" for="newYearConfirmInput">실행하려면 아래 입력창에 <strong>신년초기화</strong> 를 입력하세요.<span class="req-mark" aria-hidden="true">*</span></label>
+          <input id="newYearConfirmInput" type="text" class="field-input" required placeholder="신년초기화">
+        </div>
+        <div id="newYearDlgError" class="auth-error hidden" role="alert"></div>
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="btn btn-secondary" data-close-dialog="newYearResetDialog">취소</button>
+        <button type="submit" id="newYearResetSubmitBtn" class="btn btn-danger">백업 후 신년 초기화 실행</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 운영일지 업무사항 담당자 설정 모달 -->
+  <dialog id="journalWritersDialog" class="app-dialog" aria-labelledby="journalWritersDlgTitle">
+    <form id="journalWritersForm" method="dialog" novalidate>
+      <div class="dialog-head">
+        <h3 id="journalWritersDlgTitle">운영일지 업무사항 담당자 설정</h3>
+        <button type="button" class="dialog-close-icon" data-close-dialog="journalWritersDialog" aria-label="창 닫기">×</button>
+      </div>
+      <div class="dialog-body">
+        <p class="subtext-secondary">체크된 선생님만 새 운영일지 '업무사항' 칸에 기본 표시됩니다. 센터장님 등 기록하지 않는 계정은 체크를 해제하세요.</p>
+        <div id="journalWritersList" class="journal-writers-list"></div>
+        <div class="journal-custom-writer-add">
+          <label for="newCustomWriterInput" class="sr-only">직접 이름 추가</label>
+          <input id="newCustomWriterInput" type="text" class="field-input" maxlength="20" placeholder="직접 추가할 선생님 성함">
+          <button type="button" id="addCustomWriterBtn" class="btn btn-secondary btn-sm">+ 이름 추가</button>
+        </div>
+        <div id="journalWritersError" class="auth-error hidden" role="alert"></div>
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="btn btn-secondary" data-close-dialog="journalWritersDialog">취소</button>
+        <button type="submit" class="btn btn-primary">저장</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 공용 확인·경고 모달 (브라우저 기본 confirm/alert 대체) -->
+  <dialog id="confirmDialog" class="app-dialog" aria-labelledby="confirmDlgTitle">
+    <div class="dialog-head">
+      <h3 id="confirmDlgTitle">확인</h3>
+      <button type="button" id="confirmDlgCloseBtn" class="dialog-close-icon" aria-label="창 닫기">×</button>
+    </div>
+    <div class="dialog-body">
+      <p id="confirmDlgMessage" class="confirm-dlg-message"></p>
+    </div>
+    <div class="dialog-foot">
+      <button type="button" id="confirmDlgCancelBtn" class="btn btn-secondary">취소</button>
+      <button type="button" id="confirmDlgAltBtn" class="btn btn-secondary hidden"></button>
+      <button type="button" id="confirmDlgOkBtn" class="btn btn-primary">확인</button>
+    </div>
+  </dialog>
+
+  <div id="toastRegion" class="toast-region no-print" aria-live="polite"></div>
+</body>
+</html>

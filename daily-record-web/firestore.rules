@@ -1,0 +1,236 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    function isBootstrapped() {
+      return exists(/databases/$(database)/documents/settings/bootstrap);
+    }
+
+    function isSignedInTeacher() {
+      return isAuthed() &&
+        exists(/databases/$(database)/documents/teachers/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return isSignedInTeacher() &&
+        get(/databases/$(database)/documents/teachers/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isValidHex64(val) {
+      return val is string && val.matches('^[0-9a-f]{64}$');
+    }
+
+    match /settings/bootstrap {
+      allow get: if true;
+      allow list: if false;
+      allow create: if isAuthed()
+        && !isBootstrapped()
+        && request.resource.data.keys().hasOnly(['initialized', 'createdAt'])
+        && request.resource.data.initialized == true
+        && getAfter(/databases/$(database)/documents/teachers/$(request.auth.uid)).data.role == 'admin'
+        && existsAfter(/databases/$(database)/documents/settings/invite_secret);
+      allow update, delete: if false;
+    }
+
+    match /settings/invite_secret {
+      allow read: if false;
+      allow create: if isAuthed()
+        && !isBootstrapped()
+        && getAfter(/databases/$(database)/documents/settings/bootstrap).data.initialized == true
+        && request.resource.data.keys().hasOnly(['inviteProof', 'updatedAt'])
+        && isValidHex64(request.resource.data.inviteProof);
+      allow update: if isAdmin()
+        && request.resource.data.keys().hasOnly(['inviteProof', 'updatedAt'])
+        && isValidHex64(request.resource.data.inviteProof);
+      allow delete: if false;
+    }
+
+    match /settings/invite_meta {
+      allow get: if isSignedInTeacher();
+      allow list: if false;
+      allow create: if isAuthed()
+        && !isBootstrapped()
+        && getAfter(/databases/$(database)/documents/settings/bootstrap).data.initialized == true
+        && request.resource.data.keys().hasOnly(['statusText', 'updatedAt'])
+        && request.resource.data.statusText is string
+        && request.resource.data.statusText.size() <= 60;
+      allow update: if isAdmin()
+        && request.resource.data.keys().hasOnly(['statusText', 'updatedAt'])
+        && request.resource.data.statusText is string
+        && request.resource.data.statusText.size() <= 60;
+      allow delete: if false;
+    }
+
+    match /invite_claims/{uid} {
+      allow read: if false;
+      allow create, update: if isAuthed()
+        && request.auth.uid == uid
+        && isBootstrapped()
+        && request.resource.data.keys().hasOnly(['inviteProof', 'createdAt'])
+        && isValidHex64(request.resource.data.inviteProof)
+        && request.resource.data.inviteProof == get(/databases/$(database)/documents/settings/invite_secret).data.inviteProof;
+      allow delete: if isAdmin() || (isAuthed() && request.auth.uid == uid);
+    }
+
+    match /teachers/{uid} {
+      allow read: if isSignedInTeacher();
+
+      allow create: if (
+          // 1. Initial facility admin bootstrap
+          isAuthed()
+          && request.auth.uid == uid
+          && !isBootstrapped()
+          && getAfter(/databases/$(database)/documents/settings/bootstrap).data.initialized == true
+          && existsAfter(/databases/$(database)/documents/settings/invite_secret)
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'nameHash', 'authId', 'role', 'createdAt', 'lastLoginAt'])
+          && request.resource.data.uid == uid
+          && request.resource.data.role == 'admin'
+          && request.resource.data.name is string
+          && request.resource.data.name.size() >= 1
+          && request.resource.data.name.size() <= 20
+          && isValidHex64(request.resource.data.nameHash)
+          && request.resource.data.authId is string
+        ) || (
+          // 2. Teacher self-signup with server-verified invite_claims proof
+          isAuthed()
+          && request.auth.uid == uid
+          && isBootstrapped()
+          && !exists(/databases/$(database)/documents/teachers/$(uid))
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'nameHash', 'authId', 'role', 'createdAt', 'lastLoginAt'])
+          && request.resource.data.uid == uid
+          && request.resource.data.role == 'teacher'
+          && request.resource.data.name is string
+          && request.resource.data.name.size() >= 1
+          && request.resource.data.name.size() <= 20
+          && isValidHex64(request.resource.data.nameHash)
+          && request.resource.data.authId is string
+          && getAfter(/databases/$(database)/documents/invite_claims/$(uid)).data.inviteProof ==
+             get(/databases/$(database)/documents/settings/invite_secret).data.inviteProof
+        ) || (
+          // 3. Admin re-provisioning another teacher (password reset)
+          isAdmin()
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'nameHash', 'authId', 'role', 'createdAt', 'lastLoginAt'])
+          && request.resource.data.uid == uid
+          && request.resource.data.role in ['admin', 'teacher']
+          && request.resource.data.name is string
+          && request.resource.data.name.size() >= 1
+          && request.resource.data.name.size() <= 20
+          && isValidHex64(request.resource.data.nameHash)
+          && request.resource.data.authId is string
+        );
+
+      allow update: if (
+          // Self can update ONLY lastLoginAt
+          isSignedInTeacher()
+          && request.auth.uid == uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLoginAt'])
+          && request.resource.data.lastLoginAt is string
+          && request.resource.data.lastLoginAt.size() <= 40
+        ) || (
+          // Admin can update role/lastLoginAt, but cannot demote self from admin
+          isAdmin()
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'nameHash', 'authId', 'role', 'createdAt', 'lastLoginAt'])
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.role in ['admin', 'teacher']
+          && (uid != request.auth.uid || request.resource.data.role == 'admin')
+        );
+
+      allow delete: if isAdmin() && uid != request.auth.uid;
+    }
+
+    match /login_slots/{nameHash} {
+      allow get: if isValidHex64(nameHash);
+      allow list: if false;
+
+      allow create: if isValidHex64(nameHash)
+        && request.resource.data.keys().hasOnly(['uid', 'authId', 'updatedAt'])
+        && request.resource.data.uid is string
+        && request.resource.data.authId is string
+        && (
+          // Initial bootstrap
+          (isAuthed()
+            && !isBootstrapped()
+            && request.resource.data.uid == request.auth.uid
+            && getAfter(/databases/$(database)/documents/settings/bootstrap).data.initialized == true)
+          ||
+          // Teacher self-signup (must not overwrite existing nameHash)
+          (isAuthed()
+            && isBootstrapped()
+            && !exists(/databases/$(database)/documents/login_slots/$(nameHash))
+            && request.resource.data.uid == request.auth.uid
+            && getAfter(/databases/$(database)/documents/teachers/$(request.auth.uid)).data.nameHash == nameHash)
+          ||
+          isAdmin()
+        );
+
+      allow update, delete: if isAdmin();
+    }
+
+    match /settings/members {
+      allow read: if isSignedInTeacher();
+      allow write: if isSignedInTeacher()
+        && request.resource.data.keys().hasOnly(['list', 'archived'])
+        && request.resource.data.list is list
+        && request.resource.data.list.size() <= 64
+        && request.resource.data.archived is list
+        && request.resource.data.archived.size() <= 300;
+    }
+
+    match /settings/programs {
+      allow read: if isSignedInTeacher();
+      allow write: if isSignedInTeacher()
+        && request.resource.data.keys().hasAll(['list'])
+        && request.resource.data.keys().hasOnly(['list', 'categories'])
+        && request.resource.data.list is list
+        && request.resource.data.list.size() <= 200
+        && (!('categories' in request.resource.data) || (
+          request.resource.data.categories is list
+          && request.resource.data.categories.size() >= 8
+          && request.resource.data.categories.size() <= 30
+        ));
+    }
+
+    match /attendances/{date} {
+      allow read: if isSignedInTeacher();
+      allow create, update: if isSignedInTeacher()
+        && date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.records is map
+        && request.resource.data.records.size() <= 64;
+      allow delete: if isAdmin();
+    }
+
+    match /activities/{date} {
+      allow read: if isSignedInTeacher();
+      allow create, update: if isSignedInTeacher()
+        && date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.rows is list
+        && request.resource.data.rows.size() <= 100;
+      allow delete: if isAdmin();
+    }
+
+    match /settings/journal {
+      allow read: if isSignedInTeacher();
+      allow write: if isSignedInTeacher()
+        && request.resource.data.keys().hasOnly(['writers', 'updatedAt'])
+        && request.resource.data.writers is list
+        && request.resource.data.writers.size() <= 30;
+    }
+
+    match /journals/{date} {
+      allow read: if isSignedInTeacher();
+      allow create, update: if isSignedInTeacher()
+        && date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.staffTasks is list
+        && request.resource.data.staffTasks.size() <= 20;
+      allow delete: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
